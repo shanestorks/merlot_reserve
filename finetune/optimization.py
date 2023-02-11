@@ -97,7 +97,7 @@ def construct_finetuning_train_state(opt_config, model, params, only_state=False
 
     # move state to device
     state = state.replace(step=jax_utils.replicate(state.step))
-    state = state.replace(opt_state=jax.tree_map(_shard_opt, state.opt_state))
+    # state = state.replace(opt_state=jax.tree_map(_shard_opt, state.opt_state))
     state = state.replace(params=jax_utils.replicate(state.params))
 
     return state, tx_fns

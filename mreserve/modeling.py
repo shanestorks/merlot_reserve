@@ -219,8 +219,8 @@ class AttentionLayer(nn.Module):
         :param sinusoids [*batch_dims, seq_len, rotary_hsize <= size_per_head // 2]. This is how we encode position
         :return:
         """
-        print("{}: {}".format(self.name, 'NOT doing rotary ' if sinusoids is None else f'doing rotary: {sinusoids}'), flush=True)
-        print("{}: ~{}doing attnmask~".format(self.name, 'NOT ' if attention_bias is None else ''), flush=True)
+        # print("{}: {}".format(self.name, 'NOT doing rotary ' if sinusoids is None else f'doing rotary: {sinusoids}'), flush=True)
+        # print("{}: ~{}doing attnmask~".format(self.name, 'NOT ' if attention_bias is None else ''), flush=True)
         *batch_dims, seq_len, hidden_size = x.shape
         assert self.hidden_size % self.size_per_head == 0
         num_heads = self.hidden_size // self.size_per_head
@@ -266,9 +266,9 @@ class TransformerLayer(nn.Module):
     def __call__(self, x, *, sinusoids=None, attention_bias=None):
         *batch_dims, seq_len, hsz = x.shape
         assert hsz == self.hidden_size
-        print("Transformer layer my dtype={}; x={}; sinusoids={}".format(
-            self.dtype, (x.shape, x.dtype),
-            (sinusoids.dtype, sinusoids.shape) if sinusoids is not None else None), flush=True)
+        # print("Transformer layer my dtype={}; x={}; sinusoids={}".format(
+            # self.dtype, (x.shape, x.dtype),
+            # (sinusoids.dtype, sinusoids.shape) if sinusoids is not None else None), flush=True)
         x_ln = nn.LayerNorm(epsilon=1e-5, dtype=self.dtype, name='pre_attn_ln')(x)
         x_attn = AttentionLayer(hidden_size=self.hidden_size, dtype=self.dtype, size_per_head=self.size_per_head,
                                 name='attention_layer')(x_ln, sinusoids=sinusoids, attention_bias=attention_bias)
@@ -334,14 +334,14 @@ class TransformerEncoder(nn.Module):
             sinusoids = construct_rotary_sinusoids(rotary_coords, rotary_hsize=self.rotary_hsize)
         else:
             sinusoids = None
-            print("ROTARY IS NONE SO PROVIDING PE", flush=True)
+            # print("ROTARY IS NONE SO PROVIDING PE", flush=True)
             pos_emb = self.param('pe', nn.initializers.normal(stddev=0.02), (seq_len, self.hidden_size))
             for i in range(len(batch_dims)):
                 pos_emb = pos_emb[None]
             x += pos_emb
 
         if (is_valid is not None) and (attention_mask is None):
-            print("Constructing the attention mask")
+            # print("Constructing the attention mask")
             attention_mask = is_valid[..., None] & is_valid[..., None, :]
         elif (is_valid is not None) and (attention_mask is not None):
             raise ValueError("Provide only one of `is_valid` and `attention_mask` "
@@ -359,7 +359,7 @@ class TransformerEncoder(nn.Module):
 
         x = nn.LayerNorm(epsilon=1e-5, dtype=self.dtype, name='pre_ln')(x)
         for layer_num in range(self.num_layers):
-            print(f"Layer {layer_num:02d}")
+            # print(f"Layer {layer_num:02d}")
             x = TransformerLayer(hidden_size=self.hidden_size, expansion_mult=self.expansion_mult,
                                  size_per_head=self.size_per_head, dtype=self.dtype,
                                  name=f'layer_{layer_num:02d}')(x, sinusoids=sinusoids, attention_bias=attention_bias)
@@ -592,7 +592,7 @@ class MerlotReserve(nn.Module):
             setattr(self, k, v)
 
         self.dtype = jnp.bfloat16 if self.config.get('use_bfloat16', False) else jnp.float32
-        print(f"Using dtype {self.dtype}", flush=True)
+        # print(f"Using dtype {self.dtype}", flush=True)
 
         self.output_grid_h, self.output_grid_w = self.config['output_grid']
         self.size_per_head = self.config.get('size_per_head', 64)
@@ -639,12 +639,12 @@ class MerlotReserve(nn.Module):
             dummy_batch_jax = {k: jnp.asarray(v[0, 0, None]) for k, v in dummy_batch.items()}
             return self.init(k2, dummy_batch_jax)
 
-        print("start compiling", flush=True)
+        # print("start compiling", flush=True)
         params = jax.jit(init_model, backend='cpu')()['params']
 
         # in case anything got initialized to bf16
         params = bf16_to_f32(params)
-        print(clu.parameter_overview.get_parameter_overview(params), flush=True)
+        # print(clu.parameter_overview.get_parameter_overview(params), flush=True)
 
         return params
 
@@ -671,13 +671,14 @@ class MerlotReserve(nn.Module):
         """
         B, L = tokens.shape
         if token_embs is None:
-            print("Constructing token embs in `prepare_multimodal_inputs`", flush=True)
+            # print("Constructing token embs in `prepare_multimodal_inputs`", flush=True)
             token_embs = self.token_encoder({'k': tokens})['k']
 
         if (audio_spans is None) or (audio_pointers is None):
-            print("Not including audio input", flush=True)
+            # print("Not including audio input", flush=True)
+            pass
         else:
-            print("adding in audio input!")
+            # print("adding in audio input!")
             b_, num_audio_seqs, audio_token_length, h_ = audio_spans.shape
             assert b_ == B
             assert self.audio_token_length == audio_token_length
@@ -709,8 +710,8 @@ class MerlotReserve(nn.Module):
             num_pool_segments = vis_seq_len // (hpool * wpool)
             img_coords = jnp.tile(img_coords_pool, [num_pool_segments, 1])
             vis_segment_idx = jnp.arange(num_pool_segments, dtype=jnp.int32).repeat(hpool * wpool)
-            print(f"Vision input {hpool}x{wpool}: {vis_seq_len}. num_pool_segments: {num_pool_segments}",
-                  flush=True)
+            # print(f"Vision input {hpool}x{wpool}: {vis_seq_len}. num_pool_segments: {num_pool_segments}",
+            #       flush=True)
             img_coords = jnp.tile(img_coords[None], [B, 1, 1])
             vis_segment_idx = jnp.tile(vis_segment_idx[None], [B, 1])
             img_mm_coords = multimodal_rotary_coords(segment_idx=vis_segment_idx.astype(self.dtype),
@@ -732,7 +733,7 @@ class MerlotReserve(nn.Module):
             extra_len = padding_len - is_valid.shape[1]
             assert extra_len >= 0
             if extra_len > 0:
-                print(f"Padding by {extra_len}", flush=True)
+                # print(f"Padding by {extra_len}", flush=True)
                 is_valid = jnp.concatenate([is_valid, jnp.zeros([B, extra_len], dtype=is_valid.dtype)], 1)
                 coords = jnp.concatenate([coords, jnp.zeros([B, extra_len, 4], dtype=coords.dtype)], 1)
                 token_embs = jnp.concatenate(
@@ -744,7 +745,7 @@ class MerlotReserve(nn.Module):
 
         # Deal with the case where we packed multiple things together in a single seqence
         if (video_src_idx is not None) and (token_segment_idx is not None):
-            print("Masking using video_src_idx to split up different videos in the same sequence", flush=True)
+            # print("Masking using video_src_idx to split up different videos in the same sequence", flush=True)
             batch_indexer = jnp.arange(B, dtype=jnp.int32)[:, None]
             video_src = [video_src_idx[batch_indexer, token_segment_idx]]
             if vis_segment_idx is not None:
