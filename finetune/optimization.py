@@ -4,6 +4,7 @@ Optimization for finetuning, for tpu vm
 a few efficient tweaks -- doing optimizer sharding and weight decay to the initial values
 """
 import sys
+import flax
 from flax import jax_utils
 from jax._src.api import device_put_sharded
 import optax
@@ -98,6 +99,7 @@ def construct_finetuning_train_state(opt_config, model, params, only_state=False
     # move state to device
     state = state.replace(step=jax_utils.replicate(state.step))
     # state = state.replace(opt_state=jax.tree_map(_shard_opt, state.opt_state))
+    state = flax.jax_utils.replicate(state)
     state = state.replace(params=jax_utils.replicate(state.params))
 
     return state, tx_fns
