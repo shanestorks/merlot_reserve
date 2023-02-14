@@ -94,10 +94,10 @@ def scale_by_bfloat16_adam(
     def update_fn(updates, state, params=None):
         del params
 
-        next_m = jax.tree_multimap(_momentum_update, updates, state.mu)
+        next_m = jax.tree_map(_momentum_update, updates, state.mu)
         next_m_enc = jax.tree_map(lambda x: x.astype(jnp.bfloat16), next_m)
 
-        next_v = jax.tree_multimap(_secondorder_update, updates, state.nu)
+        next_v = jax.tree_map(_secondorder_update, updates, state.nu)
         next_v_enc = jax.tree_map(_unsigned_bfloat16_encode, next_v)
 
         count_inc = numerics.safe_int32_increment(state.count)
@@ -106,7 +106,7 @@ def scale_by_bfloat16_adam(
             next_v = _bias_correction(next_v, b2, count_inc)
 
         # Apply updates
-        updates = jax.tree_multimap(
+        updates = jax.tree_map(
             lambda m, v: m / (jnp.sqrt(v + eps_root) + eps), next_m, next_v)
 
         return updates, ScaleByAdamState(count=count_inc, mu=next_m_enc, nu=next_v_enc)

@@ -636,8 +636,8 @@ class MerlotReserve(nn.Module):
     def init_from_dummy_batch(self, dummy_batch):
         def init_model():
             k1, k2 = jax.random.split(jax.random.PRNGKey(0))
-            dummy_batch_jax = {k: jnp.asarray(v[0, 0, None]) for k, v in dummy_batch.items()}
-            return self.init(k2, dummy_batch_jax)
+            # dummy_batch_jax = {k: jnp.asarray(v[0, 0, None]) for k, v in dummy_batch.items()}
+            return self.init(k2, dummy_batch)
 
         # print("start compiling", flush=True)
         params = jax.jit(init_model, backend='cpu')()['params']
