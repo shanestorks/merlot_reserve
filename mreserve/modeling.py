@@ -640,7 +640,7 @@ class MerlotReserve(nn.Module):
             return self.init(k2, dummy_batch)
 
         # print("start compiling", flush=True)
-        params = jax.jit(init_model, backend='cpu')()['params']
+        params = jax.jit(init_model, backend='gpu')()['params']
 
         # in case anything got initialized to bf16
         params = bf16_to_f32(params)
