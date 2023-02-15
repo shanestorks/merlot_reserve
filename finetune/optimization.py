@@ -147,6 +147,9 @@ def finetune_train_step(state: train_state.TrainState, batch,
     grads = jax.tree_map(lambda x: jnp.nan_to_num(x, copy=False), grads)
     grads = jax.lax.pmean(grads, axis_name='batch')
 
+    for k in batch:
+        print('check1', k, batch[k].shape)
+
     # ##################
     # Adam sharding
     def _idx_grad(x):
@@ -156,13 +159,18 @@ def finetune_train_step(state: train_state.TrainState, batch,
             x = jnp.reshape(x, [8, x.shape[0] // 8] + list(x.shape[1:]))
             idx = jax.lax.axis_index('batch') % 8
             return x[idx]
-    updates = jax.tree_map(_idx_grad, grads)
+    # updates = jax.tree_map(_idx_grad, grads)
+    updates = grads
+    # print(updates)
     updates = bf16_to_f32(updates)
 
     # HACK - do the first two things separately
     assert len(state.opt_state) == 5
     updates, nos0 = tx_fns[0].update(updates, state.opt_state[0], None)
     updates, nos1 = tx_fns[1].update(updates, state.opt_state[1], None)
+
+    for k in batch:
+        print('check2', k, batch[k].shape)
 
     # for weight decay and everything else now we move updates back to the right shape
     def _fix_grad(update, param):
@@ -173,6 +181,9 @@ def finetune_train_step(state: train_state.TrainState, batch,
             update = jax.lax.all_gather(update, axis_name='batch', axis_index_groups=aig)
             return jnp.reshape(update, param.shape)
     updates = jax.tree_map(_fix_grad, updates, state.params)
+
+    for k in batch:
+        print('check3', k, batch[k].shape)
 
     # do the final few updates -- weight decay, scale by schedule, scale by LR. as weight decay requires
     # existing params
@@ -186,6 +197,9 @@ def finetune_train_step(state: train_state.TrainState, batch,
     # Average metrics over all replicas
     loss_info = jax.lax.pmean(loss_info, axis_name='batch')
     loss_info = bf16_to_f32(loss_info)
+
+    for k in batch:
+        print('check4', k, batch[k].shape)
 
     new_state = state.replace(
         step=state.step + 1,
